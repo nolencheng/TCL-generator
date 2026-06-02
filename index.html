@@ -1,0 +1,1807 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EDA TCL 腳本產生器 — Synopsys Tools</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #0f1117;
+      --bg2: #1a1d26;
+      --bg3: #22263a;
+      --border: #2e3250;
+      --accent: #4f8ef7;
+      --accent2: #7c5cbf;
+      --green: #3ecf8e;
+      --yellow: #f5a623;
+      --red: #e74c3c;
+      --orange: #e67e22;
+      --cyan: #17c3b2;
+      --text: #e8eaf0;
+      --text2: #9099b5;
+      --text3: #5f6785;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    .header {
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .header h1 {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--accent);
+      white-space: nowrap;
+    }
+    .header .subtitle {
+      font-size: 12px;
+      color: var(--text2);
+    }
+
+    /* ── Tool Tabs ── */
+    .tool-tabs {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .tool-tab {
+      padding: 6px 14px;
+      border-radius: 20px;
+      border: 1.5px solid var(--border);
+      background: transparent;
+      color: var(--text2);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      transition: all 0.18s;
+    }
+    .tool-tab:hover { border-color: var(--accent); color: var(--accent); }
+    .tool-tab.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    .tool-tab[data-tool="PT"].active { background: var(--green); border-color: var(--green); }
+    .tool-tab[data-tool="ICC2"].active { background: var(--accent2); border-color: var(--accent2); }
+    .tool-tab[data-tool="VCS"].active { background: var(--orange); border-color: var(--orange); }
+    .tool-tab[data-tool="Formality"].active { background: var(--cyan); border-color: var(--cyan); }
+    .tool-tab[data-tool="SpyGlass"].active { background: var(--red); border-color: var(--red); }
+
+    /* ── Main Layout ── */
+    .main {
+      display: grid;
+      grid-template-columns: 280px 1fr 400px;
+      gap: 0;
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    /* ── Left Panel: Paths ── */
+    .left-panel {
+      background: var(--bg2);
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .panel-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text3);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 6px;
+    }
+    .path-group { display: flex; flex-direction: column; gap: 8px; }
+    .path-item label {
+      font-size: 11px;
+      color: var(--text2);
+      margin-bottom: 3px;
+      display: block;
+    }
+    .path-item input, .path-item select {
+      width: 100%;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      padding: 6px 10px;
+      font-size: 12px;
+      font-family: 'Monaco', 'Menlo', monospace;
+      transition: border-color 0.15s;
+    }
+    .path-item input:focus, .path-item select:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .path-item input::placeholder { color: var(--text3); }
+
+    .divider {
+      height: 1px;
+      background: var(--border);
+    }
+
+    .var-preview {
+      background: var(--bg3);
+      border-radius: 8px;
+      padding: 10px;
+      font-size: 11px;
+      font-family: monospace;
+      color: var(--text2);
+      line-height: 1.7;
+    }
+    .var-preview .var-name { color: var(--yellow); }
+    .var-preview .var-val { color: var(--green); }
+
+    .add-custom-btn {
+      width: 100%;
+      padding: 7px;
+      border-radius: 6px;
+      border: 1.5px dashed var(--border);
+      background: transparent;
+      color: var(--text3);
+      cursor: pointer;
+      font-size: 12px;
+      transition: all 0.15s;
+    }
+    .add-custom-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ── Center Panel: Commands ── */
+    .center-panel {
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .cmd-section {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .cmd-section-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      background: var(--bg3);
+      cursor: pointer;
+      user-select: none;
+    }
+    .cmd-section-header .icon { font-size: 16px; }
+    .cmd-section-header .label {
+      font-size: 13px;
+      font-weight: 700;
+      flex: 1;
+    }
+    .cmd-section-header .toggle {
+      color: var(--text3);
+      font-size: 12px;
+      transition: transform 0.2s;
+    }
+    .cmd-section.collapsed .toggle { transform: rotate(-90deg); }
+    .cmd-section.collapsed .cmd-buttons { display: none; }
+
+    .cmd-buttons {
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .cmd-btn {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1.5px solid var(--border);
+      background: var(--bg);
+      cursor: pointer;
+      text-align: left;
+      transition: all 0.15s;
+    }
+    .cmd-btn:hover {
+      border-color: var(--accent);
+      background: rgba(79,142,247,0.05);
+      transform: translateX(2px);
+    }
+    .cmd-btn.inserted {
+      border-color: var(--green);
+      background: rgba(62,207,142,0.05);
+      animation: flash 0.4s ease;
+    }
+    @keyframes flash {
+      0% { background: rgba(62,207,142,0.25); }
+      100% { background: rgba(62,207,142,0.05); }
+    }
+    .cmd-btn .btn-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+    .cmd-btn .btn-content { flex: 1; }
+    .cmd-btn .btn-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 2px;
+    }
+    .cmd-btn .btn-desc {
+      font-size: 11px;
+      color: var(--text2);
+      margin-bottom: 4px;
+    }
+    .cmd-btn .btn-preview {
+      font-size: 10px;
+      font-family: 'Monaco', 'Menlo', monospace;
+      color: var(--text3);
+      background: var(--bg3);
+      padding: 3px 6px;
+      border-radius: 4px;
+      white-space: pre;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .cmd-btn.has-options .btn-options {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+      margin-top: 6px;
+    }
+    .cmd-btn .btn-options span {
+      padding: 2px 8px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      font-size: 10px;
+      color: var(--text2);
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+    .cmd-btn .btn-options span:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: rgba(79,142,247,0.08);
+    }
+    .cmd-btn .btn-options span.selected {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: #fff;
+    }
+
+    /* ── Right Panel: Script Output ── */
+    .right-panel {
+      background: var(--bg2);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+    }
+    .right-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg3);
+      flex-wrap: wrap;
+    }
+    .right-header span { font-size: 13px; font-weight: 700; flex: 1; }
+    .right-header .line-count {
+      font-size: 11px;
+      color: var(--text3);
+      font-family: monospace;
+    }
+    .action-btns { display: flex; gap: 6px; }
+    .action-btn {
+      padding: 5px 12px;
+      border-radius: 6px;
+      border: 1.5px solid var(--border);
+      background: transparent;
+      color: var(--text2);
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 600;
+      transition: all 0.15s;
+    }
+    .action-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .action-btn.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    .action-btn.primary:hover { opacity: 0.85; }
+    .action-btn.danger { border-color: var(--red); color: var(--red); }
+    .action-btn.danger:hover { background: rgba(231,76,60,0.1); }
+
+    .script-area {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+    }
+    #script-output {
+      width: 100%;
+      height: 100%;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text);
+      font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+      font-size: 12px;
+      line-height: 1.6;
+      resize: none;
+      white-space: pre;
+    }
+    .script-highlighted {
+      font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+      font-size: 12px;
+      line-height: 1.6;
+      background: transparent !important;
+    }
+
+    .toolbar-bottom {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      padding: 10px 16px;
+      border-top: 1px solid var(--border);
+      background: var(--bg3);
+      align-items: center;
+    }
+    .toolbar-bottom .info {
+      font-size: 11px;
+      color: var(--text3);
+      flex: 1;
+    }
+
+    /* ── Tooltip ── */
+    .tip {
+      position: fixed;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 11px;
+      color: var(--text2);
+      pointer-events: none;
+      z-index: 999;
+      max-width: 300px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+    .tip.visible { opacity: 1; }
+
+    /* ── Responsive ── */
+    @media (max-width: 900px) {
+      .main { grid-template-columns: 1fr; grid-template-rows: auto 1fr auto; }
+      .left-panel { max-height: 280px; }
+      .right-panel { min-height: 300px; }
+    }
+
+    /* ── Empty State ── */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      gap: 12px;
+      color: var(--text3);
+      font-size: 13px;
+      text-align: center;
+      padding: 32px;
+    }
+    .empty-state .icon { font-size: 40px; }
+
+    /* ── Section Colors ── */
+    .cmd-section[data-cat="read"] .cmd-section-header { border-left: 3px solid var(--accent); }
+    .cmd-section[data-cat="lib"] .cmd-section-header { border-left: 3px solid var(--accent2); }
+    .cmd-section[data-cat="constraint"] .cmd-section-header { border-left: 3px solid var(--yellow); }
+    .cmd-section[data-cat="compile"] .cmd-section-header { border-left: 3px solid var(--green); }
+    .cmd-section[data-cat="report"] .cmd-section-header { border-left: 3px solid var(--cyan); }
+    .cmd-section[data-cat="output"] .cmd-section-header { border-left: 3px solid var(--orange); }
+    .cmd-section[data-cat="env"] .cmd-section-header { border-left: 3px solid var(--red); }
+    .cmd-section[data-cat="floorplan"] .cmd-section-header { border-left: 3px solid var(--accent2); }
+    .cmd-section[data-cat="place"] .cmd-section-header { border-left: 3px solid var(--green); }
+    .cmd-section[data-cat="route"] .cmd-section-header { border-left: 3px solid var(--orange); }
+  </style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div>
+    <h1>EDA TCL 腳本產生器</h1>
+    <div class="subtitle">Synopsys Tools — 點選按鈕即可產生對應 TCL 指令</div>
+  </div>
+  <div class="tool-tabs" id="toolTabs">
+    <button class="tool-tab active" data-tool="DC">Design Compiler</button>
+    <button class="tool-tab" data-tool="PT">PrimeTime</button>
+    <button class="tool-tab" data-tool="ICC2">IC Compiler II</button>
+    <button class="tool-tab" data-tool="VCS">VCS Simulation</button>
+    <button class="tool-tab" data-tool="Formality">Formality</button>
+    <button class="tool-tab" data-tool="SpyGlass">SpyGlass</button>
+  </div>
+</div>
+
+<!-- Main Layout -->
+<div class="main">
+
+  <!-- Left: Path Config -->
+  <div class="left-panel" id="leftPanel">
+    <div>
+      <div class="panel-title">路徑設定</div>
+      <div class="path-group" id="pathGroup">
+        <!-- Dynamic paths per tool -->
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div>
+      <div class="panel-title">常用參數</div>
+      <div class="path-group" id="paramGroup">
+        <!-- Dynamic params per tool -->
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div>
+      <div class="panel-title">變數預覽</div>
+      <div class="var-preview" id="varPreview"></div>
+    </div>
+
+    <button class="add-custom-btn" id="addHeaderBtn">+ 加入檔頭說明</button>
+    <button class="add-custom-btn" id="addCommentBtn">+ 加入分隔線註解</button>
+  </div>
+
+  <!-- Center: Command Buttons -->
+  <div class="center-panel" id="centerPanel">
+    <!-- Dynamic per tool -->
+  </div>
+
+  <!-- Right: Script Output -->
+  <div class="right-panel">
+    <div class="right-header">
+      <span>產生的 TCL 腳本</span>
+      <span class="line-count" id="lineCount">0 行</span>
+      <div class="action-btns">
+        <button class="action-btn" id="copyBtn">複製</button>
+        <button class="action-btn primary" id="downloadBtn">下載 .tcl</button>
+        <button class="action-btn danger" id="clearBtn">清除</button>
+      </div>
+    </div>
+    <div class="script-area">
+      <textarea id="script-output" spellcheck="false" placeholder="← 點選左邊的指令按鈕來產生 TCL 腳本&#10;&#10;腳本將在此顯示，可直接複製或下載"></textarea>
+    </div>
+    <div class="toolbar-bottom">
+      <span class="info" id="statusInfo">選擇工具並點選指令開始產生腳本</span>
+      <button class="action-btn" id="undoBtn">復原最後</button>
+      <button class="action-btn" id="editModeBtn">編輯模式</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- Tooltip -->
+<div class="tip" id="tooltip"></div>
+
+<script>
+// ──────────────────────────────────────────────
+// Tool Definitions
+// ──────────────────────────────────────────────
+const TOOLS = {
+
+  DC: {
+    name: 'Design Compiler',
+    paths: [
+      { key: 'RTL_DIR',    label: 'RTL 目錄',         placeholder: '/proj/rtl/src' },
+      { key: 'TECH_LIB',   label: '技術 Library (.db)', placeholder: '/lib/TECH/db/slow.db' },
+      { key: 'MW_LIB',     label: 'Milkyway Library',  placeholder: '/lib/TECH/mw/sc_lib' },
+      { key: 'SDC_FILE',   label: 'SDC 約束檔',        placeholder: '/proj/constraints/top.sdc' },
+      { key: 'OUTPUT_DIR', label: '輸出目錄',           placeholder: '/proj/syn/outputs' },
+      { key: 'REPORT_DIR', label: '報告目錄',           placeholder: '/proj/syn/reports' },
+    ],
+    params: [
+      { key: 'TOP_MODULE', label: '頂層模組名稱',  placeholder: 'TOP' },
+      { key: 'CLK_PORT',   label: '時鐘腳位',      placeholder: 'clk' },
+      { key: 'CLK_PERIOD', label: '時鐘週期 (ns)', placeholder: '2.0' },
+      { key: 'MAX_CORES',  label: '最大使用核心數', placeholder: '8' },
+    ],
+    sections: [
+      {
+        cat: 'env', icon: '⚙️', label: '環境設定',
+        cmds: [
+          {
+            icon: '🔧', label: '設定多核心並行',
+            desc: '設定 DC 使用多核心加速綜合',
+            preview: 'set_host_options -max_cores $MAX_CORES',
+            tcl: () => `set_host_options -max_cores ${p('MAX_CORES')}`
+          },
+          {
+            icon: '📚', label: '設定 Target Library',
+            desc: '指定綜合用的技術庫（關鍵：決定 cell 的速度/面積特性）',
+            preview: 'set target_library {TECH_LIB}',
+            tcl: () => `set target_library {${p('TECH_LIB')}}`
+          },
+          {
+            icon: '🔗', label: '設定 Link Library',
+            desc: '設定 link library（包含 * 表示已讀取的設計）',
+            preview: 'set link_library {* TECH_LIB}',
+            tcl: () => `set link_library {* ${p('TECH_LIB')}}`
+          },
+          {
+            icon: '🗂️', label: '設定 Symbol Library',
+            desc: '設定符號庫（用於圖形顯示，可選）',
+            preview: 'set symbol_library {tech.sdb}',
+            tcl: () => `set symbol_library {${p('TECH_LIB').replace('.db','.sdb') || 'tech.sdb'}}`
+          },
+        ]
+      },
+      {
+        cat: 'read', icon: '📂', label: '讀取設計',
+        cmds: [
+          {
+            icon: '📄', label: '讀取 Verilog RTL',
+            desc: '讀取所有 .v 檔案到 DC',
+            preview: 'read_file -format verilog [glob RTL_DIR/*.v]',
+            tcl: () => `read_file -format verilog [glob ${p('RTL_DIR')}/*.v]`
+          },
+          {
+            icon: '📄', label: '讀取 SystemVerilog RTL',
+            desc: '讀取所有 .sv 檔案（含 SV 語法）',
+            preview: 'analyze -format sverilog [glob RTL_DIR/*.sv]',
+            tcl: () => `analyze -format sverilog -define {SYNTHESIS} [glob ${p('RTL_DIR')}/*.sv]\nelaborate ${p('TOP_MODULE')}`
+          },
+          {
+            icon: '📄', label: '讀取 VHDL',
+            desc: '讀取所有 .vhd 檔案',
+            preview: 'read_file -format vhdl [glob RTL_DIR/*.vhd]',
+            tcl: () => `read_file -format vhdl [glob ${p('RTL_DIR')}/*.vhd]`
+          },
+          {
+            icon: '🏗️', label: 'Link 設計',
+            desc: '連接所有模組與 library，解析階層關係',
+            preview: 'link',
+            tcl: () => `link`
+          },
+          {
+            icon: '✅', label: 'Check 設計',
+            desc: '檢查設計是否有語法或連接錯誤',
+            preview: 'check_design',
+            tcl: () => `check_design`
+          },
+          {
+            icon: '🎯', label: '設定頂層模組',
+            desc: '指定要綜合的頂層模組',
+            preview: 'current_design TOP_MODULE',
+            tcl: () => `current_design ${p('TOP_MODULE')}`
+          },
+          {
+            icon: '💾', label: '讀取 DDC 設計',
+            desc: '讀取已儲存的 DDC 格式設計',
+            preview: 'read_file -format ddc design.ddc',
+            tcl: () => `read_file -format ddc ${p('OUTPUT_DIR')}/design.ddc`
+          },
+        ]
+      },
+      {
+        cat: 'constraint', icon: '⏱️', label: '設定時序約束',
+        cmds: [
+          {
+            icon: '🕐', label: '建立時鐘',
+            desc: '建立主時鐘，定義週期與波形',
+            preview: 'create_clock -period CLK_PERIOD [get_ports CLK_PORT]',
+            tcl: () => `create_clock -period ${p('CLK_PERIOD')} -name ${p('CLK_PORT')}_clk [get_ports ${p('CLK_PORT')}]`
+          },
+          {
+            icon: '🕐', label: '建立衍生時鐘 (除2)',
+            desc: '建立除頻衍生時鐘',
+            preview: 'create_generated_clock -divide_by 2 ...',
+            tcl: () => `create_generated_clock -name ${p('CLK_PORT')}_div2 \\
+  -source [get_ports ${p('CLK_PORT')}] \\
+  -divide_by 2 \\
+  [get_pins u_clk_div/clk_out]`
+          },
+          {
+            icon: '⬅️', label: '設定輸入延遲',
+            desc: '設定所有輸入腳位的輸入延遲（除時鐘外）',
+            preview: 'set_input_delay -max 0.5 -clock CLK [all_inputs]',
+            tcl: () => `set_input_delay -max ${(parseFloat(p('CLK_PERIOD'))*0.25||0.5).toFixed(2)} -clock ${p('CLK_PORT')}_clk [remove_from_collection [all_inputs] [get_ports ${p('CLK_PORT')}]]`
+          },
+          {
+            icon: '➡️', label: '設定輸出延遲',
+            desc: '設定所有輸出腳位的輸出延遲',
+            preview: 'set_output_delay -max 0.5 -clock CLK [all_outputs]',
+            tcl: () => `set_output_delay -max ${(parseFloat(p('CLK_PERIOD'))*0.25||0.5).toFixed(2)} -clock ${p('CLK_PORT')}_clk [all_outputs]`
+          },
+          {
+            icon: '🔄', label: '設定 False Path',
+            desc: '宣告不需要時序分析的路徑（跨時鐘域/常數路徑）',
+            preview: 'set_false_path -from [get_clocks clkA] -to [get_clocks clkB]',
+            tcl: () => `# 請修改時鐘名稱\nset_false_path -from [get_clocks clkA] -to [get_clocks clkB]`
+          },
+          {
+            icon: '⬛', label: '設定 Multicycle Path',
+            desc: '設定多週期路徑（允許多個時脈週期完成）',
+            preview: 'set_multicycle_path 2 -setup -from [get_pins ...] -to [get_pins ...]',
+            tcl: () => `# 請修改路徑端點\nset_multicycle_path 2 -setup \\
+  -from [get_pins u_slow_module/data_reg*/CK] \\
+  -to   [get_pins u_out_reg*/D]`
+          },
+          {
+            icon: '📏', label: '設定最大面積',
+            desc: '要求 DC 最小化面積（0 = 盡量縮小）',
+            preview: 'set_max_area 0',
+            tcl: () => `set_max_area 0`
+          },
+          {
+            icon: '⚡', label: '設定最大扇出',
+            desc: '限制每個驅動的最大扇出數',
+            preview: 'set_max_fanout 32 [all_inputs]',
+            tcl: () => `set_max_fanout 32 [all_inputs]`
+          },
+          {
+            icon: '📦', label: '讀取 SDC 檔案',
+            desc: '直接讀取已準備好的 SDC 約束檔',
+            preview: 'read_sdc SDC_FILE',
+            tcl: () => `read_sdc ${p('SDC_FILE')}`
+          },
+          {
+            icon: '🌡️', label: '設定操作條件 (WC/BC)',
+            desc: '設定 Worst Case 或 Best Case 操作條件',
+            preview: 'set_operating_conditions -max WCCOM -min BCCOM',
+            tcl: () => `set_operating_conditions -max WCCOM -max_library ${p('TECH_LIB')} \\
+  -min BCCOM -min_library ${p('TECH_LIB')}`
+          },
+        ]
+      },
+      {
+        cat: 'compile', icon: '🔨', label: '綜合 (Synthesis)',
+        cmds: [
+          {
+            icon: '⚡', label: '執行 compile_ultra',
+            desc: '最高品質綜合（推薦），同時進行 retiming 最佳化',
+            preview: 'compile_ultra -retime',
+            tcl: () => `compile_ultra -retime`
+          },
+          {
+            icon: '🔨', label: '執行 compile (標準)',
+            desc: '標準綜合流程，速度較快',
+            preview: 'compile -map_effort medium',
+            tcl: () => `compile -map_effort medium`
+          },
+          {
+            icon: '🔁', label: '執行增量綜合',
+            desc: '在已綜合設計基礎上進行增量最佳化',
+            preview: 'compile -incremental_mapping',
+            tcl: () => `compile -incremental_mapping -map_effort medium`
+          },
+          {
+            icon: '🌐', label: '執行 compile 含階層展平',
+            desc: '展平階層後再綜合，可提升跨模組最佳化',
+            preview: 'compile_ultra -no_autoungroup',
+            tcl: () => `ungroup -all -flatten\ncompile_ultra -retime`
+          },
+        ]
+      },
+      {
+        cat: 'report', icon: '📊', label: '產生報告',
+        cmds: [
+          {
+            icon: '⏱️', label: '時序報告 (Timing)',
+            desc: '顯示 Setup Time 最差路徑報告',
+            preview: 'report_timing -max_paths 10 -path full_clock_expanded',
+            tcl: () => `report_timing -max_paths 10 \\
+  -path full_clock_expanded \\
+  -delay_type max \\
+  > ${p('REPORT_DIR')}/timing_setup.rpt`
+          },
+          {
+            icon: '📐', label: '面積報告 (Area)',
+            desc: '顯示各模組面積資訊',
+            preview: 'report_area -hierarchy',
+            tcl: () => `report_area -hierarchy -nosplit \\
+  > ${p('REPORT_DIR')}/area.rpt`
+          },
+          {
+            icon: '🔋', label: '功耗報告 (Power)',
+            desc: '顯示動態與靜態功耗估計',
+            preview: 'report_power -analysis_effort high',
+            tcl: () => `report_power -analysis_effort high -hierarchy \\
+  > ${p('REPORT_DIR')}/power.rpt`
+          },
+          {
+            icon: '⚠️', label: '約束違規報告',
+            desc: '列出所有時序違規的路徑',
+            preview: 'report_constraint -all_violators',
+            tcl: () => `report_constraint -all_violators -nosplit \\
+  > ${p('REPORT_DIR')}/constraint_violations.rpt`
+          },
+          {
+            icon: '📈', label: 'QoR 報告',
+            desc: '顯示設計品質整體摘要',
+            preview: 'report_qor',
+            tcl: () => `report_qor \\
+  > ${p('REPORT_DIR')}/qor.rpt`
+          },
+          {
+            icon: '🔗', label: 'Cell 使用統計',
+            desc: '顯示各種 cell 的使用數量',
+            preview: 'report_cell',
+            tcl: () => `report_cell \\
+  > ${p('REPORT_DIR')}/cell_usage.rpt`
+          },
+          {
+            icon: '🕐', label: 'Hold Time 報告',
+            desc: '顯示 Hold Time 最差路徑',
+            preview: 'report_timing -delay_type min',
+            tcl: () => `report_timing -max_paths 10 \\
+  -path full_clock_expanded \\
+  -delay_type min \\
+  > ${p('REPORT_DIR')}/timing_hold.rpt`
+          },
+        ]
+      },
+      {
+        cat: 'output', icon: '💾', label: '輸出檔案',
+        cmds: [
+          {
+            icon: '📤', label: '輸出 Verilog 網表',
+            desc: '輸出綜合後的門階電路 Verilog 網表',
+            preview: 'write_file -format verilog -output netlist.v -hierarchy',
+            tcl: () => `write_file -format verilog \\
+  -output ${p('OUTPUT_DIR')}/${p('TOP_MODULE')}_netlist.v \\
+  -hierarchy`
+          },
+          {
+            icon: '📦', label: '儲存 DDC 格式',
+            desc: '儲存為 DC 格式，可快速重新讀取',
+            preview: 'write_file -format ddc -output design.ddc',
+            tcl: () => `write_file -format ddc \\
+  -output ${p('OUTPUT_DIR')}/${p('TOP_MODULE')}.ddc`
+          },
+          {
+            icon: '⏱️', label: '輸出 SDC 約束',
+            desc: '輸出供後端使用的 SDC 檔案',
+            preview: 'write_sdc output.sdc',
+            tcl: () => `write_sdc -nosplit \\
+  ${p('OUTPUT_DIR')}/${p('TOP_MODULE')}.sdc`
+          },
+          {
+            icon: '📋', label: '輸出 SDF 時序',
+            desc: '輸出標準延遲格式，供後仿真使用',
+            preview: 'write_sdf output.sdf',
+            tcl: () => `write_sdf -version 2.1 \\
+  ${p('OUTPUT_DIR')}/${p('TOP_MODULE')}.sdf`
+          },
+          {
+            icon: '📝', label: '輸出所有報告',
+            desc: '一次輸出 timing、area、power、qor 所有報告',
+            preview: '# 批次輸出所有報告',
+            tcl: () => `# ── 批次輸出所有報告 ──
+report_timing -max_paths 20 -path full_clock_expanded -delay_type max > ${p('REPORT_DIR')}/timing_setup.rpt
+report_timing -max_paths 20 -path full_clock_expanded -delay_type min > ${p('REPORT_DIR')}/timing_hold.rpt
+report_area -hierarchy -nosplit > ${p('REPORT_DIR')}/area.rpt
+report_power -hierarchy > ${p('REPORT_DIR')}/power.rpt
+report_qor > ${p('REPORT_DIR')}/qor.rpt
+report_constraint -all_violators -nosplit > ${p('REPORT_DIR')}/violations.rpt`
+          },
+        ]
+      },
+    ]
+  },
+
+  PT: {
+    name: 'PrimeTime STA',
+    paths: [
+      { key: 'NETLIST',    label: '門階網表 (.v)',    placeholder: '/proj/syn/outputs/top_netlist.v' },
+      { key: 'TECH_LIB',   label: '時序 Library (.db)', placeholder: '/lib/TECH/db/slow.db' },
+      { key: 'SDC_FILE',   label: 'SDC 約束檔',       placeholder: '/proj/syn/outputs/top.sdc' },
+      { key: 'SPEF_FILE',  label: 'SPEF 寄生參數檔',  placeholder: '/proj/apr/outputs/top.spef' },
+      { key: 'REPORT_DIR', label: '報告輸出目錄',      placeholder: '/proj/sta/reports' },
+    ],
+    params: [
+      { key: 'TOP_MODULE', label: '頂層模組名稱', placeholder: 'TOP' },
+      { key: 'CLK_NAME',   label: '時鐘名稱',    placeholder: 'clk' },
+      { key: 'CLK_PERIOD', label: '時鐘週期 (ns)', placeholder: '2.0' },
+      { key: 'CORNER',     label: '分析角 (Corner)', placeholder: 'slow_125' },
+    ],
+    sections: [
+      {
+        cat: 'read', icon: '📂', label: '讀取設計',
+        cmds: [
+          {
+            icon: '📄', label: '讀取門階網表',
+            desc: '讀取綜合後的 Verilog 網表',
+            preview: 'read_verilog netlist.v',
+            tcl: () => `read_verilog ${p('NETLIST')}`
+          },
+          {
+            icon: '🔗', label: 'Link 設計',
+            desc: '連接設計與 library',
+            preview: 'link_design TOP_MODULE',
+            tcl: () => `link_design ${p('TOP_MODULE')}`
+          },
+          {
+            icon: '📦', label: '讀取 SDC 約束',
+            desc: '讀取時序約束檔案',
+            preview: 'read_sdc sdc_file',
+            tcl: () => `read_sdc ${p('SDC_FILE')}`
+          },
+          {
+            icon: '🌊', label: '讀取 SPEF 寄生參數',
+            desc: '讀取佈線後的 RC 寄生參數（必須在 link 後）',
+            preview: 'read_parasitics -format spef top.spef',
+            tcl: () => `read_parasitics -format spef \\
+  -keep_capacitive_coupling \\
+  ${p('SPEF_FILE')}`
+          },
+          {
+            icon: '📚', label: '設定 Library 路徑',
+            desc: '設定 PT 讀取的時序庫與 link 庫',
+            preview: 'set target_library / set link_library',
+            tcl: () => `set target_library {${p('TECH_LIB')}}
+set link_library {* ${p('TECH_LIB')}}`
+          },
+        ]
+      },
+      {
+        cat: 'constraint', icon: '⏱️', label: '時序設定',
+        cmds: [
+          {
+            icon: '🕐', label: '建立時鐘（手動）',
+            desc: '若 SDC 未包含，手動建立時鐘',
+            preview: 'create_clock -period CLK_PERIOD [get_ports CLK_NAME]',
+            tcl: () => `create_clock -period ${p('CLK_PERIOD')} \\
+  -name ${p('CLK_NAME')} \\
+  [get_ports ${p('CLK_NAME')}]`
+          },
+          {
+            icon: '🌡️', label: '設定操作條件',
+            desc: '設定溫度/電壓操作條件',
+            preview: 'set_operating_conditions SLOW',
+            tcl: () => `set_operating_conditions -max ${p('CORNER') || 'WCCOM'}`
+          },
+          {
+            icon: '⚡', label: '設定傳播時鐘',
+            desc: '啟用傳播時鐘（更真實的時鐘網路分析）',
+            preview: 'set_propagated_clock [all_clocks]',
+            tcl: () => `set_propagated_clock [all_clocks]`
+          },
+        ]
+      },
+      {
+        cat: 'report', icon: '📊', label: '時序分析與報告',
+        cmds: [
+          {
+            icon: '✅', label: '檢查時序設定',
+            desc: '驗證時序約束是否完整且正確',
+            preview: 'check_timing',
+            tcl: () => `check_timing -verbose > ${p('REPORT_DIR')}/check_timing.rpt`
+          },
+          {
+            icon: '⏱️', label: 'Setup 時序報告',
+            desc: '找出 Setup Time 違規的最差路徑',
+            preview: 'report_timing -delay_type max -max_paths 20',
+            tcl: () => `report_timing \\
+  -delay_type max \\
+  -max_paths 20 \\
+  -path_type full_clock_expanded \\
+  -input_pins \\
+  -nosplit \\
+  > ${p('REPORT_DIR')}/timing_setup.rpt`
+          },
+          {
+            icon: '⏱️', label: 'Hold 時序報告',
+            desc: '找出 Hold Time 違規的最差路徑',
+            preview: 'report_timing -delay_type min -max_paths 20',
+            tcl: () => `report_timing \\
+  -delay_type min \\
+  -max_paths 20 \\
+  -path_type full_clock_expanded \\
+  -nosplit \\
+  > ${p('REPORT_DIR')}/timing_hold.rpt`
+          },
+          {
+            icon: '📊', label: 'WNS / TNS 摘要',
+            desc: '快速顯示最差負 slack 與總負 slack',
+            preview: 'report_global_timing',
+            tcl: () => `report_global_timing > ${p('REPORT_DIR')}/global_timing.rpt`
+          },
+          {
+            icon: '🕐', label: '時鐘時序報告',
+            desc: '顯示時鐘網路延遲與 skew 資訊',
+            preview: 'report_clock_timing -type skew',
+            tcl: () => `report_clock_timing -type summary > ${p('REPORT_DIR')}/clock_summary.rpt
+report_clock_timing -type skew   > ${p('REPORT_DIR')}/clock_skew.rpt`
+          },
+          {
+            icon: '⚠️', label: '約束違規報告',
+            desc: '列出所有 violated 的路徑與約束',
+            preview: 'report_constraint -all_violators',
+            tcl: () => `report_constraint -all_violators -nosplit \\
+  > ${p('REPORT_DIR')}/violations.rpt`
+          },
+          {
+            icon: '📋', label: '時序摘要（自動化）',
+            desc: '一次產生 setup/hold/clock 所有摘要報告',
+            preview: '# 批次報告',
+            tcl: () => `# ── PrimeTime 批次報告 ──
+report_timing -delay_type max -max_paths 50 -path_type full_clock_expanded -nosplit > ${p('REPORT_DIR')}/setup.rpt
+report_timing -delay_type min -max_paths 50 -path_type full_clock_expanded -nosplit > ${p('REPORT_DIR')}/hold.rpt
+report_global_timing > ${p('REPORT_DIR')}/global.rpt
+report_clock_timing -type summary > ${p('REPORT_DIR')}/clock.rpt
+report_constraint -all_violators > ${p('REPORT_DIR')}/violations.rpt`
+          },
+        ]
+      },
+      {
+        cat: 'output', icon: '💾', label: '輸出',
+        cmds: [
+          {
+            icon: '📤', label: '輸出 SAIF（切換活動）',
+            desc: '輸出 SAIF 供功耗分析使用',
+            preview: 'report_saif -output design.saif',
+            tcl: () => `report_saif -output ${p('REPORT_DIR')}/design.saif`
+          },
+          {
+            icon: '💡', label: 'ECO 輸出（Fixing）',
+            desc: '輸出可 ECO 修復的時序違規腳本',
+            preview: 'fix_eco_timing -type setup',
+            tcl: () => `# 讀取 ECO lib 後執行
+fix_eco_timing -type setup -methods size_cell \\
+  > ${p('REPORT_DIR')}/eco_fixing.tcl`
+          },
+        ]
+      },
+    ]
+  },
+
+  ICC2: {
+    name: 'IC Compiler II',
+    paths: [
+      { key: 'NETLIST',    label: '門階網表 (.v)',    placeholder: '/proj/syn/top_netlist.v' },
+      { key: 'SDC_FILE',   label: 'SDC 約束檔',       placeholder: '/proj/syn/top.sdc' },
+      { key: 'LIB_DIR',    label: 'NDM Library 目錄', placeholder: '/lib/TECH/ndm' },
+      { key: 'TECH_FILE',  label: '技術檔 (.tf)',      placeholder: '/lib/TECH/techfile.tf' },
+      { key: 'OUTPUT_DIR', label: '輸出目錄',          placeholder: '/proj/apr/outputs' },
+      { key: 'REPORT_DIR', label: '報告目錄',          placeholder: '/proj/apr/reports' },
+    ],
+    params: [
+      { key: 'TOP_MODULE', label: '頂層模組名稱', placeholder: 'TOP' },
+      { key: 'DESIGN_LIB', label: 'Design Library 名稱', placeholder: 'MY_DESIGN' },
+      { key: 'DIE_W',      label: '晶片寬度 (um)', placeholder: '1000' },
+      { key: 'DIE_H',      label: '晶片高度 (um)', placeholder: '1000' },
+      { key: 'CORE_UTIL',  label: 'Core 利用率 (%)', placeholder: '70' },
+    ],
+    sections: [
+      {
+        cat: 'read', icon: '📂', label: '讀取與建立設計',
+        cmds: [
+          {
+            icon: '🏗️', label: '建立 Design Library',
+            desc: '建立儲存設計資料的 Library（首次執行）',
+            preview: 'create_lib -name MY_DESIGN -ref_libs {NDM}',
+            tcl: () => `create_lib \\
+  -name ${p('DESIGN_LIB')} \\
+  -ref_libs {${p('LIB_DIR')}} \\
+  -technology ${p('TECH_FILE')}`
+          },
+          {
+            icon: '📄', label: '讀取 Verilog 網表',
+            desc: '將綜合後的網表匯入設計',
+            preview: 'read_verilog netlist.v',
+            tcl: () => `read_verilog -library ${p('DESIGN_LIB')} \\
+  -design ${p('TOP_MODULE')} \\
+  ${p('NETLIST')}`
+          },
+          {
+            icon: '🔗', label: 'Link 設計',
+            desc: '連接設計與技術庫',
+            preview: 'link_block',
+            tcl: () => `link_block`
+          },
+          {
+            icon: '📦', label: '讀取 SDC 約束',
+            desc: '讀取時序約束，開啟設計後執行',
+            preview: 'read_sdc sdc_file',
+            tcl: () => `read_sdc ${p('SDC_FILE')}`
+          },
+        ]
+      },
+      {
+        cat: 'floorplan', icon: '🗺️', label: 'Floorplan 規劃',
+        cmds: [
+          {
+            icon: '📐', label: '初始化 Floorplan',
+            desc: '設定晶片邊界、Core area 與利用率',
+            preview: 'initialize_floorplan -use_utilization ...',
+            tcl: () => `initialize_floorplan \\
+  -use_utilization_ratio ${(parseInt(p('CORE_UTIL'))/100||0.7).toFixed(2)} \\
+  -core_offset {5 5 5 5}`
+          },
+          {
+            icon: '📏', label: '設定固定晶片尺寸',
+            desc: '以精確晶片長寬設定 Die area',
+            preview: 'initialize_floorplan -die_area ...',
+            tcl: () => `initialize_floorplan \\
+  -die_area {0 0 ${p('DIE_W')} ${p('DIE_H')}} \\
+  -core_area {10 10 ${parseInt(p('DIE_W'))-10} ${parseInt(p('DIE_H'))-10}}`
+          },
+          {
+            icon: '⚡', label: '加入電源環 (Power Ring)',
+            desc: '在 Core 周圍加入 VDD/VSS 電源環',
+            preview: 'create_pg_ring ...',
+            tcl: () => `create_pg_ring \\
+  -net {VDD VSS} \\
+  -layer {M8 M9} \\
+  -width {4 4} \\
+  -spacing {2 2}`
+          },
+          {
+            icon: '🏛️', label: '加入電源 Stripe',
+            desc: '在 Core 內加入垂直電源條',
+            preview: 'create_pg_std_cell_conn_pattern ...',
+            tcl: () => `create_pg_std_cell_conn_pattern \\
+  -net_names {VDD VSS} \\
+  -mode rails`
+          },
+          {
+            icon: '🔧', label: '插入 Well Tap',
+            desc: '插入 Well Tap Cell 以防止 Latch-up',
+            preview: 'place_tap_cells ...',
+            tcl: () => `place_tap_cells \\
+  -lib_cell TAPCELL_X4 \\
+  -distance 50 \\
+  -pattern stagger`
+          },
+        ]
+      },
+      {
+        cat: 'place', icon: '🔲', label: 'Placement（擺放）',
+        cmds: [
+          {
+            icon: '🔲', label: '執行 Placement',
+            desc: '進行標準單元擺放與最佳化',
+            preview: 'place_opt',
+            tcl: () => `place_opt`
+          },
+          {
+            icon: '✅', label: '合法化擺放',
+            desc: '確認所有 cell 擺放合法',
+            preview: 'legalize_placement',
+            tcl: () => `legalize_placement`
+          },
+          {
+            icon: '⏱️', label: '擺放後時序報告',
+            desc: '檢查擺放後 Setup/Hold 時序',
+            preview: 'report_timing -max_paths 10',
+            tcl: () => `report_timing \\
+  -max_paths 10 \\
+  -delay_type max \\
+  > ${p('REPORT_DIR')}/timing_postplace.rpt`
+          },
+        ]
+      },
+      {
+        cat: 'compile', icon: '🌲', label: 'CTS（時鐘樹合成）',
+        cmds: [
+          {
+            icon: '🌲', label: '執行 Clock Tree 合成',
+            desc: '自動建立並最佳化時鐘分佈網路',
+            preview: 'clock_opt',
+            tcl: () => `clock_opt`
+          },
+          {
+            icon: '📊', label: 'Clock Skew 報告',
+            desc: '顯示時鐘樹的 skew 與延遲',
+            preview: 'report_clock_qor',
+            tcl: () => `report_clock_qor > ${p('REPORT_DIR')}/cts_qor.rpt`
+          },
+        ]
+      },
+      {
+        cat: 'route', icon: '🛣️', label: 'Routing（佈線）',
+        cmds: [
+          {
+            icon: '🛣️', label: '執行全局 + 詳細佈線',
+            desc: '依序進行全局佈線和詳細佈線',
+            preview: 'route_auto',
+            tcl: () => `route_auto -max_detail_route_iterations 10`
+          },
+          {
+            icon: '🔧', label: '佈線後最佳化',
+            desc: '修復佈線後的時序違規與 DRC 問題',
+            preview: 'route_opt',
+            tcl: () => `route_opt`
+          },
+          {
+            icon: '⚠️', label: '檢查 DRC 違規',
+            desc: '找出設計規則違規',
+            preview: 'check_routes',
+            tcl: () => `check_routes \\
+  > ${p('REPORT_DIR')}/drc.rpt`
+          },
+          {
+            icon: '⏱️', label: '佈線後時序報告',
+            desc: '含寄生參數的最終時序報告',
+            preview: 'report_timing -max_paths 20',
+            tcl: () => `report_timing \\
+  -max_paths 20 \\
+  -delay_type max \\
+  > ${p('REPORT_DIR')}/timing_postroute.rpt
+report_timing \\
+  -max_paths 20 \\
+  -delay_type min \\
+  > ${p('REPORT_DIR')}/timing_hold_postroute.rpt`
+          },
+        ]
+      },
+      {
+        cat: 'output', icon: '💾', label: '輸出',
+        cmds: [
+          {
+            icon: '📤', label: '輸出 GDS',
+            desc: '輸出 GDSII 用於光罩製作',
+            preview: 'write_gds -file top.gds',
+            tcl: () => `write_gds \\
+  -file ${p('OUTPUT_DIR')}/${p('TOP_MODULE')}.gds \\
+  -merge_files {${p('LIB_DIR')}/std_cells.gds}`
+          },
+          {
+            icon: '📄', label: '輸出最終網表',
+            desc: '輸出佈線後的 Verilog 網表',
+            preview: 'write_verilog -file top_final.v',
+            tcl: () => `write_verilog \\
+  -file ${p('OUTPUT_DIR')}/${p('TOP_MODULE')}_final.v`
+          },
+          {
+            icon: '🌊', label: '輸出 SPEF',
+            desc: '輸出寄生參數 SPEF 供 PT 使用',
+            preview: 'write_parasitics -output top.spef',
+            tcl: () => `write_parasitics \\
+  -output ${p('OUTPUT_DIR')}/${p('TOP_MODULE')}.spef`
+          },
+          {
+            icon: '⏱️', label: '輸出 SDC',
+            desc: '輸出更新後的 SDC',
+            preview: 'write_sdc -file top_final.sdc',
+            tcl: () => `write_sdc \\
+  -file ${p('OUTPUT_DIR')}/${p('TOP_MODULE')}_final.sdc`
+          },
+        ]
+      },
+    ]
+  },
+
+  VCS: {
+    name: 'VCS Simulation',
+    paths: [
+      { key: 'RTL_DIR',  label: 'RTL 原始碼目錄', placeholder: '/proj/rtl/src' },
+      { key: 'TB_DIR',   label: 'Testbench 目錄', placeholder: '/proj/tb' },
+      { key: 'LIB_DIR',  label: 'Cell Library 目錄', placeholder: '/lib/TECH/verilog' },
+      { key: 'WORK_DIR', label: '工作目錄',        placeholder: '/proj/sim/work' },
+      { key: 'WAVE_OUT', label: '波形輸出路徑',    placeholder: '/proj/sim/waves/dump.vpd' },
+    ],
+    params: [
+      { key: 'TOP_MODULE', label: '頂層 Testbench', placeholder: 'tb_top' },
+      { key: 'DUT_MODULE', label: 'DUT 模組名稱',  placeholder: 'DUT' },
+      { key: 'SIM_TIME',   label: '模擬時間',       placeholder: '1000000ns' },
+      { key: 'SEED',       label: '隨機 Seed',      placeholder: '1' },
+    ],
+    sections: [
+      {
+        cat: 'env', icon: '⚙️', label: '編譯設定',
+        cmds: [
+          {
+            icon: '🔨', label: 'VCS 編譯（RTL 行為模擬）',
+            desc: '編譯 RTL 進行功能仿真，含 debug 資訊',
+            preview: 'vcs -full64 -sverilog -debug_all ...',
+            tcl: () => `# ── VCS RTL 編譯命令（請在 Shell 執行）──
+vcs -full64 -sverilog -debug_access+all \\
+  -timescale=1ns/1ps \\
+  +incdir+${p('RTL_DIR')} \\
+  +incdir+${p('TB_DIR')} \\
+  -f ${p('RTL_DIR')}/filelist.f \\
+  -f ${p('TB_DIR')}/tb_filelist.f \\
+  -top ${p('TOP_MODULE')} \\
+  -o ${p('WORK_DIR')}/simv \\
+  -l ${p('WORK_DIR')}/compile.log`
+          },
+          {
+            icon: '🔬', label: 'VCS 編譯（Gate-level 模擬）',
+            desc: '含 SDF 反標的門階模擬編譯',
+            preview: 'vcs ... +neg_tchk +sdfverbose ...',
+            tcl: () => `# ── VCS Gate-level 編譯（含 SDF）──
+vcs -full64 -sverilog -debug_access+all \\
+  -timescale=1ns/1ps \\
+  +neg_tchk +sdfverbose \\
+  +incdir+${p('TB_DIR')} \\
+  +define+SDF_ANNOTATE \\
+  ${p('LIB_DIR')}/cells.v \\
+  ${p('RTL_DIR')}/../outputs/${p('DUT_MODULE')}_netlist.v \\
+  -f ${p('TB_DIR')}/tb_filelist.f \\
+  -top ${p('TOP_MODULE')} \\
+  -o ${p('WORK_DIR')}/simv_gate \\
+  -l ${p('WORK_DIR')}/compile_gate.log`
+          },
+        ]
+      },
+      {
+        cat: 'compile', icon: '▶️', label: '執行模擬',
+        cmds: [
+          {
+            icon: '▶️', label: '執行模擬',
+            desc: '執行已編譯的模擬',
+            preview: './simv -l sim.log +vpdfile+dump.vpd',
+            tcl: () => `# ── 執行 VCS 模擬 ──
+${p('WORK_DIR')}/simv \\
+  +vpdfile+${p('WAVE_OUT')} \\
+  +vpdon \\
+  -l ${p('WORK_DIR')}/sim.log`
+          },
+          {
+            icon: '🎲', label: '帶隨機 Seed 執行',
+            desc: '以指定 seed 執行隨機測試',
+            preview: './simv +ntb_random_seed=SEED',
+            tcl: () => `${p('WORK_DIR')}/simv \\
+  +ntb_random_seed=${p('SEED')} \\
+  +vpdfile+${p('WAVE_OUT')}.${p('SEED')} \\
+  -l ${p('WORK_DIR')}/sim_seed${p('SEED')}.log`
+          },
+          {
+            icon: '🔄', label: '執行迴歸測試（多 Seed）',
+            desc: '以 1~10 個不同 seed 批次執行',
+            preview: 'for seed in 1..10 { run simv }',
+            tcl: () => `# ── 批次迴歸測試（Bash Script）──
+for seed in 1 2 3 4 5 6 7 8 9 10; do
+  ${p('WORK_DIR')}/simv \\
+    +ntb_random_seed=$seed \\
+    -l ${p('WORK_DIR')}/regr_seed$seed.log &
+done
+wait
+echo "所有模擬完成"`
+          },
+        ]
+      },
+      {
+        cat: 'report', icon: '📊', label: '覆蓋率 (Coverage)',
+        cmds: [
+          {
+            icon: '📊', label: '啟用程式碼覆蓋率',
+            desc: '重新編譯以收集 line/cond/branch coverage',
+            preview: 'vcs ... -coverage all ...',
+            tcl: () => `# 加入 -coverage 重新編譯
+vcs -full64 -sverilog -debug_access+all \\
+  -timescale=1ns/1ps \\
+  -coverage {line cond branch tgl} \\
+  +incdir+${p('RTL_DIR')} \\
+  -f ${p('RTL_DIR')}/filelist.f \\
+  -f ${p('TB_DIR')}/tb_filelist.f \\
+  -top ${p('TOP_MODULE')} \\
+  -o ${p('WORK_DIR')}/simv_cov`
+          },
+          {
+            icon: '📋', label: '產生覆蓋率報告',
+            desc: '使用 urg 工具產生 HTML 覆蓋率報告',
+            preview: 'urg -dir simv.vdb -report coverage_report',
+            tcl: () => `urg -dir ${p('WORK_DIR')}/simv_cov.vdb \\
+  -report ${p('WORK_DIR')}/coverage_report \\
+  -format both`
+          },
+        ]
+      },
+    ]
+  },
+
+  Formality: {
+    name: 'Formality（形式驗證）',
+    paths: [
+      { key: 'REF_NETLIST', label: '參考設計（RTL/Netlist）', placeholder: '/proj/rtl/src/top.v' },
+      { key: 'IMP_NETLIST', label: '實作網表（綜合後）',     placeholder: '/proj/syn/top_netlist.v' },
+      { key: 'TECH_LIB',    label: '技術 Library (.db)',     placeholder: '/lib/TECH/db/slow.db' },
+      { key: 'SDC_FILE',    label: 'SDC 約束（可選）',        placeholder: '/proj/syn/top.sdc' },
+      { key: 'REPORT_DIR',  label: '報告目錄',                placeholder: '/proj/fm/reports' },
+    ],
+    params: [
+      { key: 'TOP_MODULE', label: '頂層模組名稱', placeholder: 'TOP' },
+    ],
+    sections: [
+      {
+        cat: 'read', icon: '📂', label: '讀取設計',
+        cmds: [
+          {
+            icon: '📚', label: '設定 Library',
+            desc: '設定 Formality 使用的技術庫',
+            preview: 'set_svf -off; set target_library ...',
+            tcl: () => `set_svf -off
+set target_library {${p('TECH_LIB')}}
+set link_library {* ${p('TECH_LIB')}}`
+          },
+          {
+            icon: '📄', label: '讀取參考設計（RTL）',
+            desc: '讀取原始 RTL 作為 Golden 參考',
+            preview: 'read_verilog -r ref_netlist.v',
+            tcl: () => `read_verilog -r ${p('REF_NETLIST')}
+set_top r:/${p('TOP_MODULE')}`
+          },
+          {
+            icon: '📄', label: '讀取實作網表',
+            desc: '讀取綜合後或 ECO 後的網表做比較',
+            preview: 'read_verilog -i impl_netlist.v',
+            tcl: () => `read_verilog -i ${p('IMP_NETLIST')}
+set_top i:/${p('TOP_MODULE')}`
+          },
+        ]
+      },
+      {
+        cat: 'compile', icon: '🔬', label: '執行驗證',
+        cmds: [
+          {
+            icon: '🔬', label: '執行形式驗證',
+            desc: '開始比對兩個設計的等效性',
+            preview: 'verify',
+            tcl: () => `match
+verify`
+          },
+          {
+            icon: '🔍', label: '顯示不匹配點',
+            desc: '列出驗證失敗的不等效點',
+            preview: 'report_failing_points',
+            tcl: () => `report_failing_points \\
+  > ${p('REPORT_DIR')}/failing_points.rpt`
+          },
+          {
+            icon: '🐛', label: '除錯不等效點',
+            desc: '對指定的 failing point 進行診斷',
+            preview: 'diagnose -failing_points',
+            tcl: () => `diagnose \\
+  > ${p('REPORT_DIR')}/diagnose.rpt`
+          },
+        ]
+      },
+      {
+        cat: 'report', icon: '📊', label: '報告',
+        cmds: [
+          {
+            icon: '📋', label: '驗證結果摘要',
+            desc: '顯示整體驗證通過/失敗的統計',
+            preview: 'report_status',
+            tcl: () => `report_status \\
+  > ${p('REPORT_DIR')}/status.rpt`
+          },
+          {
+            icon: '📊', label: '驗證統計報告',
+            desc: '顯示 equivalent/non-equivalent/abort 的數量',
+            preview: 'report_verify',
+            tcl: () => `report_verify \\
+  > ${p('REPORT_DIR')}/verify_summary.rpt`
+          },
+        ]
+      },
+    ]
+  },
+
+  SpyGlass: {
+    name: 'SpyGlass Lint/CDC',
+    paths: [
+      { key: 'RTL_DIR',    label: 'RTL 目錄',    placeholder: '/proj/rtl/src' },
+      { key: 'REPORT_DIR', label: '報告目錄',     placeholder: '/proj/lint/reports' },
+      { key: 'WAIVER_FILE',label: 'Waiver 檔案', placeholder: '/proj/lint/waivers.awl' },
+    ],
+    params: [
+      { key: 'TOP_MODULE', label: '頂層模組名稱', placeholder: 'TOP' },
+      { key: 'CLK_NAME',   label: '時鐘信號',    placeholder: 'clk' },
+      { key: 'RST_NAME',   label: '重置信號',    placeholder: 'rst_n' },
+    ],
+    sections: [
+      {
+        cat: 'read', icon: '📂', label: '讀取設計',
+        cmds: [
+          {
+            icon: '📄', label: '讀取 RTL 檔案列表',
+            desc: '建立 SpyGlass 分析用的 Filelist',
+            preview: 'read_file -type sourcelist filelist.f',
+            tcl: () => `read_file -type sourcelist ${p('RTL_DIR')}/filelist.f
+current_design ${p('TOP_MODULE')}`
+          },
+          {
+            icon: '⚙️', label: '設定 Lint 規則集',
+            desc: '載入 SpyGlass 推薦的 Lint 規則',
+            preview: 'read_message_filter spyglass.mf',
+            tcl: () => `# 常見規則集
+lint_on -name {STARC STARC05}
+goal_setup -init`
+          },
+        ]
+      },
+      {
+        cat: 'compile', icon: '🔍', label: '執行分析',
+        cmds: [
+          {
+            icon: '🧹', label: '執行 Lint 分析',
+            desc: '檢查 RTL 代碼品質問題（未使用信號、組合迴路等）',
+            preview: 'run_goal lint/lint_rtl',
+            tcl: () => `run_goal lint/lint_rtl \\
+  > ${p('REPORT_DIR')}/lint_rtl.log`
+          },
+          {
+            icon: '🔀', label: '執行 CDC 分析',
+            desc: '檢查跨時鐘域（Clock Domain Crossing）問題',
+            preview: 'run_goal cdc/cdc_verify_struct',
+            tcl: () => `# 設定時鐘定義
+define_clock -name ${p('CLK_NAME')} \\
+  -design ${p('TOP_MODULE')} \\
+  -period 10
+
+# 執行 CDC 分析
+run_goal cdc/cdc_verify_struct \\
+  > ${p('REPORT_DIR')}/cdc.log`
+          },
+          {
+            icon: '🔴', label: '執行 RDC 分析',
+            desc: '檢查重置域交叉（Reset Domain Crossing）問題',
+            preview: 'run_goal rdc/rdc_verify_struct',
+            tcl: () => `# 設定重置定義
+define_reset -name ${p('RST_NAME')} \\
+  -design ${p('TOP_MODULE')} \\
+  -active_sense low
+
+# 執行 RDC 分析
+run_goal rdc/rdc_verify_struct \\
+  > ${p('REPORT_DIR')}/rdc.log`
+          },
+          {
+            icon: '⚡', label: '執行 Power Lint',
+            desc: '檢查低功耗相關的設計問題',
+            preview: 'run_goal power/lint_power',
+            tcl: () => `run_goal power/lint_power \\
+  > ${p('REPORT_DIR')}/power_lint.log`
+          },
+        ]
+      },
+      {
+        cat: 'report', icon: '📊', label: '報告',
+        cmds: [
+          {
+            icon: '📋', label: 'Lint 錯誤/警告報告',
+            desc: '列出所有 Lint 問題，依嚴重程度排序',
+            preview: 'report -task lint/lint_rtl -show {errors warnings}',
+            tcl: () => `report \\
+  -task lint/lint_rtl \\
+  -show {errors warnings} \\
+  > ${p('REPORT_DIR')}/lint_issues.rpt`
+          },
+          {
+            icon: '🔀', label: 'CDC 違規報告',
+            desc: '列出所有跨時鐘域同步問題',
+            preview: 'report -task cdc/cdc_verify_struct',
+            tcl: () => `report \\
+  -task cdc/cdc_verify_struct \\
+  -show {errors warnings} \\
+  > ${p('REPORT_DIR')}/cdc_violations.rpt`
+          },
+          {
+            icon: '🚫', label: '加入 Waiver',
+            desc: '對已確認無害的問題加入 Waiver',
+            preview: 'waive -rule W123 -du TOP -comment "known issue"',
+            tcl: () => `# 加入 Waiver 範例
+waive -rule SYNTH_5131 \\
+  -du ${p('TOP_MODULE')} \\
+  -comment "Known CDC - handled by synchronizer"
+waive -rule W110 \\
+  -du ${p('TOP_MODULE')} \\
+  -comment "Unused port in this configuration"`
+          },
+          {
+            icon: '📤', label: '匯出 Waiver 檔案',
+            desc: '將現有 waiver 匯出儲存',
+            preview: 'write_waiver -all -output waivers.awl',
+            tcl: () => `write_waiver \\
+  -all \\
+  -output ${p('WAIVER_FILE')}`
+          },
+        ]
+      },
+    ]
+  },
+
+};
+
+// ──────────────────────────────────────────────
+// State
+// ──────────────────────────────────────────────
+let currentTool = 'DC';
+let scriptLines = [];
+let history = [];
+const pathValues = {};
+const paramValues = {};
+
+// ──────────────────────────────────────────────
+// Path Value Accessors
+// ──────────────────────────────────────────────
+function p(key) {
+  return pathValues[key] || paramValues[key] || `\${${key}}`;
+}
+
+function getAllValues() {
+  const tool = TOOLS[currentTool];
+  const result = {};
+  tool.paths.forEach(({ key }) => result[key] = pathValues[key] || `\${${key}}`);
+  tool.params.forEach(({ key }) => result[key] = paramValues[key] || `\${${key}}`);
+  return result;
+}
+
+// ──────────────────────────────────────────────
+// Render Left Panel
+// ──────────────────────────────────────────────
+function renderLeftPanel() {
+  const tool = TOOLS[currentTool];
+  const pg = document.getElementById('pathGroup');
+  const pm = document.getElementById('paramGroup');
+
+  pg.innerHTML = tool.paths.map(({ key, label, placeholder }) => `
+    <div class="path-item">
+      <label>${label}</label>
+      <input type="text" data-key="${key}" data-type="path"
+             value="${pathValues[key] || ''}"
+             placeholder="${placeholder}">
+    </div>
+  `).join('');
+
+  pm.innerHTML = tool.params.map(({ key, label, placeholder }) => `
+    <div class="path-item">
+      <label>${label}</label>
+      <input type="text" data-key="${key}" data-type="param"
+             value="${paramValues[key] || ''}"
+             placeholder="${placeholder}">
+    </div>
+  `).join('');
+
+  // Bind change events
+  document.querySelectorAll('.path-item input').forEach(input => {
+    input.addEventListener('input', () => {
+      if (input.dataset.type === 'path') pathValues[input.dataset.key] = input.value;
+      else paramValues[input.dataset.key] = input.value;
+      renderVarPreview();
+    });
+  });
+
+  renderVarPreview();
+}
+
+function renderVarPreview() {
+  const tool = TOOLS[currentTool];
+  const lines = [];
+  tool.paths.forEach(({ key, placeholder }) => {
+    const val = pathValues[key] || '';
+    lines.push(`<span class="var-name">${key}</span> = <span class="var-val">${val || `<${placeholder}>`}</span>`);
+  });
+  tool.params.forEach(({ key, placeholder }) => {
+    const val = paramValues[key] || '';
+    lines.push(`<span class="var-name">${key}</span> = <span class="var-val">${val || `<${placeholder}>`}</span>`);
+  });
+  document.getElementById('varPreview').innerHTML = lines.join('\n');
+}
+
+// ──────────────────────────────────────────────
+// Render Center Panel
+// ──────────────────────────────────────────────
+function renderCenterPanel() {
+  const tool = TOOLS[currentTool];
+  const panel = document.getElementById('centerPanel');
+
+  panel.innerHTML = tool.sections.map(section => `
+    <div class="cmd-section" data-cat="${section.cat}">
+      <div class="cmd-section-header" onclick="toggleSection(this.parentElement)">
+        <span class="icon">${section.icon}</span>
+        <span class="label">${section.label}</span>
+        <span class="toggle">▼</span>
+      </div>
+      <div class="cmd-buttons">
+        ${section.cmds.map((cmd, ci) => `
+          <div class="cmd-btn" data-section="${section.cat}" data-idx="${ci}"
+               onclick="insertCmd('${section.cat}', ${ci})"
+               onmouseenter="showTooltip(event, this)"
+               onmouseleave="hideTooltip()">
+            <span class="btn-icon">${cmd.icon}</span>
+            <div class="btn-content">
+              <div class="btn-label">${cmd.label}</div>
+              <div class="btn-desc">${cmd.desc}</div>
+              <div class="btn-preview">${cmd.preview}</div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
+function toggleSection(el) {
+  el.classList.toggle('collapsed');
+}
+
+// ──────────────────────────────────────────────
+// Insert Command
+// ──────────────────────────────────────────────
+function insertCmd(sectionCat, cmdIdx) {
+  const tool = TOOLS[currentTool];
+  const section = tool.sections.find(s => s.cat === sectionCat);
+  const cmd = section.cmds[cmdIdx];
+
+  // Save history
+  history.push(document.getElementById('script-output').value);
+
+  // Generate TCL
+  const tcl = cmd.tcl();
+
+  // Add to script
+  const out = document.getElementById('script-output');
+  const existing = out.value;
+  const newContent = existing ? existing + '\n\n' + tcl : tcl;
+  out.value = newContent;
+
+  updateLineCount();
+  updateStatus(`已插入：${cmd.label}`);
+
+  // Visual feedback on button
+  const btn = document.querySelector(`[data-section="${sectionCat}"][data-idx="${cmdIdx}"]`);
+  if (btn) {
+    btn.classList.add('inserted');
+    setTimeout(() => btn.classList.remove('inserted'), 600);
+  }
+
+  // Scroll to bottom
+  out.scrollTop = out.scrollHeight;
+}
+
+// ──────────────────────────────────────────────
+// Script Actions
+// ──────────────────────────────────────────────
+function updateLineCount() {
+  const out = document.getElementById('script-output');
+  const lines = out.value ? out.value.split('\n').length : 0;
+  document.getElementById('lineCount').textContent = `${lines} 行`;
+}
+
+function updateStatus(msg) {
+  document.getElementById('statusInfo').textContent = msg;
+}
+
+document.getElementById('copyBtn').onclick = async () => {
+  const text = document.getElementById('script-output').value;
+  if (!text) { updateStatus('腳本為空'); return; }
+  await navigator.clipboard.writeText(text);
+  updateStatus('已複製到剪貼板 ✓');
+};
+
+document.getElementById('downloadBtn').onclick = () => {
+  const text = document.getElementById('script-output').value;
+  if (!text) { updateStatus('腳本為空'); return; }
+  const blob = new Blob([text], { type: 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${currentTool.toLowerCase()}_script.tcl`;
+  a.click();
+  updateStatus(`已下載 ${currentTool.toLowerCase()}_script.tcl`);
+};
+
+document.getElementById('clearBtn').onclick = () => {
+  const out = document.getElementById('script-output');
+  if (!out.value) return;
+  history.push(out.value);
+  out.value = '';
+  updateLineCount();
+  updateStatus('腳本已清除');
+};
+
+document.getElementById('undoBtn').onclick = () => {
+  if (history.length === 0) { updateStatus('沒有可復原的操作'); return; }
+  document.getElementById('script-output').value = history.pop();
+  updateLineCount();
+  updateStatus('已復原');
+};
+
+document.getElementById('editModeBtn').onclick = () => {
+  const out = document.getElementById('script-output');
+  out.readOnly = !out.readOnly;
+  document.getElementById('editModeBtn').textContent = out.readOnly ? '編輯模式' : '鎖定模式';
+  updateStatus(out.readOnly ? '已鎖定（防止誤操作）' : '編輯模式已開啟');
+};
+
+document.getElementById('addHeaderBtn').onclick = () => {
+  const tool = TOOLS[currentTool];
+  const date = new Date().toISOString().slice(0, 10);
+  const header = `##################################################
+# ${tool.name} 腳本
+# 產生日期：${date}
+# 設計：${paramValues['TOP_MODULE'] || 'TOP_MODULE'}
+# 工具：Synopsys ${currentTool}
+##################################################\n`;
+  const out = document.getElementById('script-output');
+  history.push(out.value);
+  out.value = header + (out.value ? '\n' + out.value : '');
+  updateLineCount();
+  updateStatus('已加入檔頭');
+};
+
+document.getElementById('addCommentBtn').onclick = () => {
+  const out = document.getElementById('script-output');
+  history.push(out.value);
+  const sep = '\n# ──────────────────────────────────────────\n';
+  out.value = out.value + sep;
+  updateLineCount();
+  updateStatus('已加入分隔線');
+  out.scrollTop = out.scrollHeight;
+};
+
+// Live line count update
+document.getElementById('script-output').addEventListener('input', updateLineCount);
+
+// ──────────────────────────────────────────────
+// Tooltip
+// ──────────────────────────────────────────────
+const tooltip = document.getElementById('tooltip');
+function showTooltip(e, el) {
+  const sectionCat = el.dataset.section;
+  const cmdIdx = parseInt(el.dataset.idx);
+  const tool = TOOLS[currentTool];
+  const section = tool.sections.find(s => s.cat === sectionCat);
+  const cmd = section.cmds[cmdIdx];
+  tooltip.innerHTML = `<b>${cmd.label}</b><br>${cmd.desc}`;
+  tooltip.style.left = e.clientX + 12 + 'px';
+  tooltip.style.top = e.clientY + 8 + 'px';
+  tooltip.classList.add('visible');
+}
+function hideTooltip() {
+  tooltip.classList.remove('visible');
+}
+
+// ──────────────────────────────────────────────
+// Tool Switching
+// ──────────────────────────────────────────────
+document.getElementById('toolTabs').addEventListener('click', e => {
+  const tab = e.target.closest('.tool-tab');
+  if (!tab) return;
+  document.querySelectorAll('.tool-tab').forEach(t => t.classList.remove('active'));
+  tab.classList.add('active');
+  currentTool = tab.dataset.tool;
+  renderLeftPanel();
+  renderCenterPanel();
+  updateStatus(`已切換到 ${TOOLS[currentTool].name}`);
+});
+
+// ──────────────────────────────────────────────
+// Init
+// ──────────────────────────────────────────────
+function init() {
+  renderLeftPanel();
+  renderCenterPanel();
+  updateStatus('選擇工具並點選指令開始產生腳本');
+}
+
+init();
+</script>
+</body>
+</html>
